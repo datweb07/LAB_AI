@@ -1,4 +1,5 @@
 """Chạy: python -m bai1_tu_cai_dat.chay_bai_1"""
+import sys
 from .do_thi import DO_THI, TRANG_THAI_DAU, TRANG_THAI_DICH
 from .thuat_toan import (
     tim_kiem_theo_chieu_rong,
@@ -10,6 +11,9 @@ from .thuat_toan import (
 
 
 def main() -> None:
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(encoding="utf-8")
     print("\nBÀI 1 - TỰ CÀI ĐẶT 5 THUẬT TOÁN TÌM KIẾM")
     print("Đồ thị có trọng số:")
     for nut_hien_tai, danh_sach_ke in DO_THI.items():

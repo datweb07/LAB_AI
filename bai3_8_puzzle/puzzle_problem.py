@@ -6,11 +6,14 @@ from .puzzle_core import (
     h1_so_o_sai_vi_tri,
     h2_khoang_cach_manhattan,
     TRANG_THAI_DICH,
+    kiem_tra_trang_thai,
 )
 
 
 class BaiToan8Puzzle(SearchProblem):
+    """Trạng thái tuple bất biến, chi phí đơn vị, heuristic chọn theo instance."""
     def __init__(self, initial_state: tuple[int, ...], loai_heuristic: str = "h2"):
+        kiem_tra_trang_thai(initial_state)
         if loai_heuristic not in ("h1", "h2"):
             raise ValueError("Heuristic phải là 'h1' hoặc 'h2'")
         super().__init__(initial_state=initial_state)

@@ -6,6 +6,7 @@ Bản viết lại tương đương với đoạn ví dụ trong tài liệu, KH
 Lưu ý: A* với hàm heuristic đơn giản này và GOAL dài có thể rất chậm.
 Dùng `vi_du_chay_nhanh.py` để kiểm chứng nhanh trong lớp.
 """
+import sys
 from simpleai.search import SearchProblem, astar
 
 GOAL = "HELLO WORLD"
@@ -30,6 +31,9 @@ class HelloProblem(SearchProblem):
 
 
 def main():
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(encoding="utf-8")
     problem = HelloProblem(initial_state="")
     result = astar(problem)
     if result is not None:

@@ -2,6 +2,7 @@
 
 Thuật toán lấy trực tiếp từ thư viện SimpleAI, không phải tự viết.
 """
+import sys
 from simpleai.search import SearchProblem, astar, breadth_first
 
 GOAL = "AI"
@@ -31,6 +32,9 @@ class HelloProblem(SearchProblem):
 
 
 def main():
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(encoding="utf-8")
     print("BÀI 2 - VÍ DỤ SIMPLEAI, TẠO CHUỖI 'AI'")
     for ten_thuat_toan, thuat_toan in [("BFS", breadth_first), ("A*", astar)]:
         problem = HelloProblem(initial_state="")

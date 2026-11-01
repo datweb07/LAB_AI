@@ -35,10 +35,11 @@ def lay_hanh_dong_hop_le(trang_thai: tuple[int, ...]) -> list[str]:
         danh_sach_hanh_dong.append("LEN")
     if hang < KICH_THUOC - 1:
         danh_sach_hanh_dong.append("XUONG")
-    if cot > 0:
-        danh_sach_hanh_dong.append("TRAI")
     if cot < KICH_THUOC - 1:
         danh_sach_hanh_dong.append("PHAI")
+    # Thứ tự cố định cho mọi trạng thái; LIFO xét TRAI trước trên demo.
+    if cot > 0:
+        danh_sach_hanh_dong.append("TRAI")
     return danh_sach_hanh_dong
 
 
@@ -100,7 +101,7 @@ def co_the_giai_duoc(bat_dau: tuple[int, ...], dich: tuple[int, ...]) -> bool:
 
 def hien_thi_ma_tran(trang_thai: tuple[int, ...]) -> str:
     return "\n".join(
-        "| " + " | ".join(" " if gia_tri == O_TRONG else str(gia_tri)
+        "| " + " | ".join(str(gia_tri)
                          for gia_tri in trang_thai[hang * 3 : (hang + 1) * 3]) + " |"
         for hang in range(3)
     )
