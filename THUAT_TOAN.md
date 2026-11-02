@@ -88,14 +88,22 @@ Cả hai là heuristic chấp nhận được: không đánh giá vượt chi ph
 
 Greedy chọn node có `h(n)` nhỏ nhất, không đảm bảo tối ưu. A* dùng `f(n) = g(n) + h(n)`: g là chi phí đã đi, h là ước lượng còn lại. Slide phân biệt A* tree search tối ưu với heuristic chấp nhận được và A* graph search tối ưu với heuristic kiên định. h1/h2 của bài này đáp ứng điều kiện kiên định, nên A* graph search tìm lời giải tối ưu.
 
-DLS nhận `depth_limit`; IDS không nhận tham số này trong API SimpleAI 0.8.3. DLS/IDS giữ tree search vì tập đóng của SimpleAI có thể loại một đường đến cùng trạng thái ở độ sâu nhỏ hơn, làm bỏ sót đích trong giới hạn. Đổi lại, tree search có nhiều nhánh lặp và có thể timeout.
+DLS nhận `depth_limit`; IDS không nhận tham số này trong API SimpleAI 0.8.3. DLS/IDS giữ tree search vì tập đóng của SimpleAI có thể loại một đường đến cùng trạng thái ở độ sâu nhỏ hơn, làm bỏ sót đích trong giới hạn. Đổi lại, tree search có nhiều nhánh lặp và có thể chạy rất lâu.
 
 Thứ tự hành động hợp lệ cố định là `LEN, XUONG, PHAI, TRAI`, lọc theo biên. LIFO xét phần tử thêm cuối trước; vì vậy DFS/DLS đi trái trước ở demo. Thứ tự không dựa vào Goal hoặc heuristic, và không đảm bảo DFS tối ưu trên đề chính.
 
 ## Luồng chạy và kiểm tra lời giải
 
-`chay_bai_3.py` nhận tham số → tạo worker → gọi hàm SimpleAI → phát lại toàn bộ path để kiểm tra hành động, trạng thái, đích, số bước và chi phí → trả JSON về tiến trình chính → hiển thị bảng/đường đi.
+`chay_bai_3.py` chạy tuần tự 9 cấu hình trong cùng tiến trình, gọi trực tiếp các hàm SimpleAI. Không có worker hoặc timeout. Mỗi lời giải được phát lại để kiểm tra hành động, trạng thái, đích cuối, số bước và chi phí trước khi báo SOLVED.
 
-Mỗi worker có timeout riêng. Khi hết giờ, tiến trình được kết thúc và chờ thu hồi trước khi chạy cấu hình tiếp theo. JSON giữa các tiến trình dùng ASCII-safe; console xuất UTF-8. Chỉ xuất file CSV/JSON khi được yêu cầu bằng tham số dòng lệnh.
+Console chỉ in thông tin đầu vào, cấu hình đang chạy và bảng so sánh cập nhật sau mỗi lượt. Không in đường đi và không lặp lại bảng cuối; việc kiểm chứng lời giải vẫn giữ nguyên. `--json` lưu mọi trạng thái/hành động nếu cần tra cứu. Chỉ xuất CSV/JSON khi được yêu cầu; console xuất UTF-8.
 
-Bài 3 không gọi thuật toán Bài 1, không sửa mã nguồn SimpleAI và không tự thay thuật toán khi timeout.
+Ctrl+C trong lúc tìm kiếm dừng lượt hiện tại, ghi INTERRUPTED và tiếp tục cấu hình kế tiếp. Đây là thao tác thủ công, không phải giới hạn thời gian. DLS vẫn có giới hạn độ sâu mặc định 20 vì đó là định nghĩa thuật toán; IDS tự tăng độ sâu theo thư viện.
+
+Bài 3 không gọi thuật toán Bài 1, không sửa mã nguồn SimpleAI và không dùng thuật toán khác làm phương án thay thế khi phải chờ lâu.
+
+## Thống kê tìm kiếm và tối ưu biểu diễn
+
+`BaiToan8Puzzle` đếm số lần gọi `actions` (Expanded), số trạng thái con tạo qua `result` (Generated, không tính gốc), và số lần `is_goal` (goal_tests). Đây là các bộ đếm ở API bài toán, không phải viewer; tránh chi phí sắp xếp frontier mà viewer của SimpleAI có thể tạo ra. Không dùng tập trạng thái duy nhất để thay cho số lần mở rộng. IDS cộng dồn qua các lượt tăng giới hạn. Số liệu được chụp ngay sau tìm kiếm, trước khi phát lại đường đi, kể cả khi người dùng dừng bằng Ctrl+C.
+
+Bảng hành động theo vị trí ô trống và bảng Manhattan được tính một lần. Phép chuyển chỉ tìm vị trí 0 một lần, kiểm tra biên qua bảng và đổi hai phần tử. Các tối ưu này giữ nguyên mọi trạng thái kế tiếp và giá trị heuristic; không bổ sung cắt chu trình hay sửa cấu trúc dữ liệu của thư viện.

@@ -18,14 +18,21 @@ class BaiToan8Puzzle(SearchProblem):
             raise ValueError("Heuristic phải là 'h1' hoặc 'h2'")
         super().__init__(initial_state=initial_state)
         self.loai_heuristic = loai_heuristic
+        self.expanded = 0
+        self.generated = 0
+        self.goal_tests = 0
 
     def actions(self, state: tuple[int, ...]) -> list[str]:
+        self.expanded += 1
         return lay_hanh_dong_hop_le(state)
 
     def result(self, state: tuple[int, ...], action: str) -> tuple[int, ...]:
-        return di_chuyen_o_trong(state, action)
+        new_state = di_chuyen_o_trong(state, action)
+        self.generated += 1
+        return new_state
 
     def is_goal(self, state: tuple[int, ...]) -> bool:
+        self.goal_tests += 1
         return state == TRANG_THAI_DICH
 
     def cost(self, state: tuple[int, ...], action: str, state2: tuple[int, ...]) -> int:

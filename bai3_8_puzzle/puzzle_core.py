@@ -9,7 +9,6 @@ KICH_THUOC: Final = 3
 O_TRONG: Final = 0
 MA_TRAN_DAU: Final = ((2, 1, 0), (3, 4, 5), (7, 8, 6))
 MA_TRAN_DICH: Final = ((1, 2, 3), (8, 0, 4), (7, 6, 5))
-MA_TRAN_DEMO: Final = ((1, 2, 3), (8, 4, 0), (7, 6, 5))
 
 
 def chuyen_ma_tran_sang_tuple(ma_tran: tuple[tuple[int, ...], ...]) -> tuple[int, ...]:
@@ -18,7 +17,6 @@ def chuyen_ma_tran_sang_tuple(ma_tran: tuple[tuple[int, ...], ...]) -> tuple[int
 
 TRANG_THAI_DAU: Final = chuyen_ma_tran_sang_tuple(MA_TRAN_DAU)
 TRANG_THAI_DICH: Final = chuyen_ma_tran_sang_tuple(MA_TRAN_DICH)
-TRANG_THAI_DEMO: Final = chuyen_ma_tran_sang_tuple(MA_TRAN_DEMO)
 
 
 def kiem_tra_trang_thai(trang_thai: tuple[int, ...]) -> None:
@@ -26,30 +24,30 @@ def kiem_tra_trang_thai(trang_thai: tuple[int, ...]) -> None:
         raise ValueError("Trạng thái 8-Puzzle phải có đủ các giá trị 0..8, mỗi giá trị xuất hiện 1 lần")
 
 
+# Tính một lần theo vị trí ô trống, giữ nguyên thứ tự sinh hành động.
+_HANH_DONG_THEO_VI_TRI: Final = tuple(
+    tuple(action for action, valid in (
+        ("LEN", position // 3 > 0),
+        ("XUONG", position // 3 < 2),
+        ("PHAI", position % 3 < 2),
+        ("TRAI", position % 3 > 0),
+    ) if valid)
+    for position in range(9)
+)
+_DO_LECH: Final = {"LEN": -3, "XUONG": 3, "TRAI": -1, "PHAI": 1}
+
+
 def lay_hanh_dong_hop_le(trang_thai: tuple[int, ...]) -> list[str]:
-    """Hành động là hướng dịch chuyển của Ô TRỐNG, không phải ô số."""
-    vi_tri_trong = trang_thai.index(O_TRONG)
-    hang, cot = divmod(vi_tri_trong, KICH_THUOC)
-    danh_sach_hanh_dong = []
-    if hang > 0:
-        danh_sach_hanh_dong.append("LEN")
-    if hang < KICH_THUOC - 1:
-        danh_sach_hanh_dong.append("XUONG")
-    if cot < KICH_THUOC - 1:
-        danh_sach_hanh_dong.append("PHAI")
-    # Thứ tự cố định cho mọi trạng thái; LIFO xét TRAI trước trên demo.
-    if cot > 0:
-        danh_sach_hanh_dong.append("TRAI")
-    return danh_sach_hanh_dong
+    """Hướng di chuyển ô trống; tra bảng biên, không cắt hành động quay lui."""
+    return list(_HANH_DONG_THEO_VI_TRI[trang_thai.index(O_TRONG)])
 
 
 def di_chuyen_o_trong(trang_thai: tuple[int, ...], hanh_dong: str) -> tuple[int, ...]:
-    """Trả về trạng thái mới. Không thay đổi tuple đầu vào."""
-    if hanh_dong not in lay_hanh_dong_hop_le(trang_thai):
-        raise ValueError(f"Hành động {hanh_dong!r} không hợp lệ")
+    """Đổi ô trống với ô kề, không sửa đầu vào hoặc thay đổi luật bài toán."""
     vi_tri_trong = trang_thai.index(O_TRONG)
-    do_lech = {"LEN": -3, "XUONG": 3, "TRAI": -1, "PHAI": 1}[hanh_dong]
-    vi_tri_doi = vi_tri_trong + do_lech
+    if hanh_dong not in _HANH_DONG_THEO_VI_TRI[vi_tri_trong]:
+        raise ValueError(f"Hành động {hanh_dong!r} không hợp lệ")
+    vi_tri_doi = vi_tri_trong + _DO_LECH[hanh_dong]
     trang_thai_moi = list(trang_thai)
     trang_thai_moi[vi_tri_trong], trang_thai_moi[vi_tri_doi] = (
         trang_thai_moi[vi_tri_doi], trang_thai_moi[vi_tri_trong]
@@ -71,16 +69,22 @@ VI_TRI_DICH = {
 }
 
 
+# Bảng khoảng cách của từng ô số tại từng vị trí, theo đúng Goal của đề.
+_KHOANG_CACH_MANHATTAN: Final = tuple(
+    tuple(
+        0 if tile == O_TRONG else
+        abs(position // 3 - VI_TRI_DICH[tile][0])
+        + abs(position % 3 - VI_TRI_DICH[tile][1])
+        for position in range(9)
+    )
+    for tile in range(9)
+)
+
+
 def h2_khoang_cach_manhattan(trang_thai: tuple[int, ...]) -> int:
-    """h2: tổng |hàng-hiện-tại - hàng-đích| + |cột-hiện-tại - cột-đích|."""
-    tong_khoang_cach = 0
-    for vi_tri, gia_tri in enumerate(trang_thai):
-        if gia_tri == O_TRONG:
-            continue
-        hang_hien_tai, cot_hien_tai = divmod(vi_tri, KICH_THUOC)
-        hang_dich, cot_dich = VI_TRI_DICH[gia_tri]
-        tong_khoang_cach += abs(hang_hien_tai - hang_dich) + abs(cot_hien_tai - cot_dich)
-    return tong_khoang_cach
+    """Tổng Manhattan các ô 1..8; ô trống đóng góp 0."""
+    return sum(_KHOANG_CACH_MANHATTAN[tile][position]
+               for position, tile in enumerate(trang_thai))
 
 
 def dem_nghich_the(trang_thai: tuple[int, ...]) -> int:

@@ -27,7 +27,7 @@ python -m bai2_vi_du_simpleai.vi_du_goc_tai_lieu
 # Bài 2: biến thể AI để trình diễn ngắn gọn bằng BFS và A*
 python -m bai2_vi_du_simpleai.vi_du_chay_nhanh
 
-# Bài 3: mặc định A* + h2, in từng bước của lời giải
+# Bài 3: cả 7 thuật toán và bảng so sánh, không giới hạn thời gian
 python -m bai3_8_puzzle.chay_bai_3
 ```
 
@@ -45,38 +45,44 @@ Initial State       Goal State
 Ma trận nguồn khai báo hai chiều; nội bộ chuyển sang tuple bất biến để dùng với SimpleAI. h1 của Initial = **7**, h2 = **10**. Cả hai bằng 0 tại Goal.
 
 ```powershell
-# Cả 7 thuật toán, tổng 9 cấu hình do Greedy/A* có riêng h1 và h2
-python -m bai3_8_puzzle.chay_bai_3 --all
+# Một luồng duy nhất: chạy 7 thuật toán / 9 cấu hình trên ma trận của giảng viên
+python -m bai3_8_puzzle.chay_bai_3
 
-# Giới hạn thời gian riêng cho từng cấu hình (mặc định 30 giây)
-python -m bai3_8_puzzle.chay_bai_3 --all --timeout 60
+# DLS vẫn cần giới hạn độ sâu; đây không phải giới hạn thời gian
+python -m bai3_8_puzzle.chay_bai_3 --depth-limit 20
 
-# Demo: trạng thái đầu cách Goal một bước, không thay thế dữ liệu đề chính
-python -m bai3_8_puzzle.chay_bai_3 --all --demo
-
-# Chọn thuật toán và heuristic
-python -m bai3_8_puzzle.chay_bai_3 --algorithm astar --heuristic h1
-python -m bai3_8_puzzle.chay_bai_3 --algorithm dls --depth-limit 20 --timeout 30
-
-# Chỉ tạo file kết quả khi chủ động yêu cầu
-python -m bai3_8_puzzle.chay_bai_3 --all --csv ket_qua.csv
-python -m bai3_8_puzzle.chay_bai_3 --json duong_di.json
+# Chỉ tạo file khi chủ động yêu cầu
+python -m bai3_8_puzzle.chay_bai_3 --csv ket_qua.csv --json duong_di.json
 ```
 
-Demo có Initial `1 2 3 / 8 4 0 / 7 6 5`, giữ nguyên Goal của đề. `--algorithm` nhận `bfs`, `dfs`, `ucs`, `dls`, `ids`, `greedy`, `astar`. `--depth-limit` chỉ áp dụng DLS; IDS của SimpleAI tự tăng độ sâu. `--engine simpleai` được giữ tương thích lệnh cũ; tất cả lượt chạy luôn dùng SimpleAI.
+Menu `python main.py` chỉ có một lựa chọn Bài 3 (mục 3). Không còn chế độ A* riêng, demo hoặc tham số `--all`, `--algorithm`, `--heuristic`, `--engine`, `--timeout`.
 
-Bảng hiển thị thuật toán, nguồn, heuristic, trạng thái, số bước, chi phí và thời gian:
+Cả 7 thuật toán đều gọi trực tiếp SimpleAI. Greedy và A* chạy riêng với h1/h2, tổng cộng 9 lượt. Thứ tự: BFS, DFS, UCS, Greedy–h1/h2, A*–h1/h2, DLS, IDS. Hai lượt tree search DLS/IDS được đặt cuối để không chặn hiển thị kết quả của các thuật toán còn lại. Không giới hạn thời gian; thuật toán chạy đến khi trả kết quả hoặc người dùng nhấn **Ctrl+C** để dừng lượt hiện tại và chuyển sang lượt tiếp theo. Lượt bị dừng được ghi `INTERRUPTED`, không được xem là đã giải được hay vô nghiệm.
 
-- `SOLVED`: đã kiểm tra đường đi tới đúng Goal, số bước và chi phí.
-- `TIMEOUT`: chưa hoàn thành trong thời gian cấp; không có nghĩa vô nghiệm.
-- `NO_SOLUTION_WITH_LIMIT`: DLS không tìm thấy lời giải trong giới hạn độ sâu.
-- `NO_SOLUTION`: tìm kiếm đã kết thúc mà không có lời giải.
-- `ERROR`: hiển thị nguyên nhân lỗi worker hoặc phản hồi JSON.
+Chương trình chỉ in thông tin đầu vào trước khi chạy, tên cấu hình đang chạy và bảng so sánh cập nhật sau mỗi lượt. Bảng sau lượt cuối là bảng đủ 9 cấu hình, không in lặp lại. Không in các bước di chuyển hoặc tóm tắt đường đi. Lời giải vẫn được kiểm chứng bên trong; lời giải tối ưu của đề chính là 20 bước, DFS/Greedy không đảm bảo tối ưu.
 
-BFS/UCS có thể chậm do SimpleAI quét các node trong hàng đợi để kiểm tra trùng trạng thái. DLS/IDS có thể duyệt rất nhiều nhánh lặp. Mỗi cấu hình được tách tiến trình để dừng khi hết giờ và tiếp tục lượt kế tiếp. Không thay thuật toán thư viện bằng thuật toán tự viết khi timeout.
+Bảng gồm thuật toán, nguồn, heuristic, trạng thái, bước lời giải, chi phí, Expanded, Generated và thời gian:
 
-Với lời giải, chi phí bằng số bước. DFS/Greedy không đảm bảo tối ưu. Đường dài chỉ hiển thị tóm tắt; tùy chọn JSON vẫn lưu đầy đủ. CSV dùng UTF-8 BOM cho Windows. Chạy mặc định hoặc chọn menu không tự tạo file kết quả.
+- `SOLVED`: đường đi, Goal, số bước và chi phí đã được kiểm tra.
+- `INTERRUPTED`: người dùng chủ động dừng lượt đang chạy bằng Ctrl+C.
+- `NO_SOLUTION_WITH_LIMIT`: DLS không tìm được đích trong giới hạn độ sâu.
+- `NO_SOLUTION`: tìm kiếm kết thúc mà không có lời giải.
+- `ERROR`: hiển thị traceback để xác định lỗi và tiếp tục cấu hình tiếp theo.
 
-```
+BFS/UCS có thể mất nhiều phút; DLS/IDS tree search có thể lâu hơn rất nhiều vì duyệt các nhánh lặp. Không có cam kết tất cả lượt sẽ hoàn thành nhanh. Chương trình không thay thuật toán hoặc thay trạng thái đầu để tăng tốc.
 
-```
+Nếu cần xem đường đi ngoài console, dùng `--json` để lưu toàn bộ trạng thái và hành động. CSV dùng UTF-8 BOM. Chạy mặc định không tạo file kết quả. Không còn tùy chọn `--full-path`.
+
+## Hiểu đúng thời gian và số bước
+
+**Bước lời giải** là số hành động trên đường đi cuối cùng, không phải số nút thuật toán đã duyệt. BFS có thể mở rộng hàng chục nghìn nút để tìm đường tối ưu 20 bước; DFS có thể tìm một đường hàng nghìn bước nhanh hơn vì thứ tự duyệt và frontier khác nhau. Không suy ra thời gian chạy từ độ dài lời giải.
+
+- `Expanded`: số lần gọi `actions` khi thư viện mở rộng nút; không phải số trạng thái khác nhau.
+- `Generated`: số lần `result` tạo trạng thái con, gồm cả trạng thái bị thư viện loại do trùng; không tính gốc.
+- JSON/CSV có thêm `goal_tests`: số lần thư viện kiểm tra đích.
+- IDS cộng dồn các lần đếm qua tất cả lượt DLS, kể cả trạng thái bị xét lặp. Lượt bị Ctrl+C vẫn giữ các số đếm đã thu được.
+- Các số liệu và thời gian tìm kiếm được chụp trước khi kiểm chứng/in đường đi, nên không tính phần phát lại lời giải.
+
+DLS ở giới hạn 6 hoặc IDS bị dừng ở độ sâu 8 không thể giải đề có khoảng cách tối ưu 20; kết quả không tìm thấy ở giới hạn thấp không so trực tiếp với một lượt tìm đến độ sâu 20. IDS nguyên bản SimpleAI không nhận tham số giới hạn độ sâu tối đa.
+
+Các tối ưu trong `puzzle_core.py` chỉ tính trước hành động hợp lệ theo 9 vị trí ô trống và khoảng cách Manhattan. Không lọc bước quay lui, không thay thứ tự hành động, không sửa frontier hoặc thuật toán SimpleAI. Vì vậy DLS/IDS tree search vẫn có thể rất chậm; không cam kết hoàn thành nhanh chỉ nhờ các tối ưu này.

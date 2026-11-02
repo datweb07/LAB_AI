@@ -1,15 +1,14 @@
-"""Bài 3: gọi trực tiếp 7 thuật toán SimpleAI, tách tiến trình theo timeout."""
+"""Bài 3: chạy đủ 7 thuật toán SimpleAI, không giới hạn thời gian."""
 import argparse
 import csv
 import json
-import math
 from pathlib import Path
-import subprocess
 import sys
 import time
+import traceback
 
 from .puzzle_core import (
-    TRANG_THAI_DAU, TRANG_THAI_DICH, TRANG_THAI_DEMO,
+    TRANG_THAI_DAU, TRANG_THAI_DICH,
     co_the_giai_duoc, dem_nghich_the, di_chuyen_o_trong,
     h1_so_o_sai_vi_tri, h2_khoang_cach_manhattan,
     hien_thi_ma_tran,
@@ -21,8 +20,10 @@ TEN_THUAT_TOAN = {
 }
 CAC_CAU_HINH = (
     ("bfs", "h2"), ("dfs", "h2"), ("ucs", "h2"),
-    ("dls", "h2"), ("ids", "h2"), ("greedy", "h1"),
+    ("greedy", "h1"),
     ("greedy", "h2"), ("astar", "h1"), ("astar", "h2"),
+    # Chạy hai lượt tree search có nhiều nhánh lặp sau các lượt còn lại.
+    ("dls", "h2"), ("ids", "h2"),
 )
 
 
@@ -50,13 +51,11 @@ def xac_minh_loi_giai(bai_toan, nut_dich) -> tuple[list, int]:
     return duong_di, chi_phi
 
 
-def chay_thuat_toan_ben_trong(
-    ten_thuat_toan: str, heuristic: str, depth_limit: int, demo: bool,
-    engine: str = "simpleai",
+def chay_thuat_toan(
+    ten_thuat_toan: str, heuristic: str, depth_limit: int,
+    trang_thai_dau: tuple[int, ...] = TRANG_THAI_DAU,
 ) -> dict:
     """Không có thuật toán tự viết hoặc fallback; chỉ gọi package đã cài."""
-    if engine != "simpleai":
-        raise ValueError("Bài 3 chỉ hỗ trợ engine simpleai")
     from simpleai.search import (
         breadth_first, depth_first, uniform_cost, limited_depth_first,
         iterative_limited_depth_first, greedy, astar,
@@ -64,7 +63,7 @@ def chay_thuat_toan_ben_trong(
     from .puzzle_problem import BaiToan8Puzzle
 
     bai_toan = BaiToan8Puzzle(
-        TRANG_THAI_DEMO if demo else TRANG_THAI_DAU, heuristic)
+        trang_thai_dau, heuristic)
     danh_sach_ham = {
         "bfs": breadth_first, "dfs": depth_first, "ucs": uniform_cost,
         "dls": limited_depth_first, "ids": iterative_limited_depth_first,
@@ -75,16 +74,29 @@ def chay_thuat_toan_ben_trong(
     tham_so = {"graph_search": ten_thuat_toan not in ("dls", "ids")}
     if ten_thuat_toan == "dls":
         tham_so["depth_limit"] = depth_limit
-    bat_dau = time.perf_counter()
-    nut_dich = danh_sach_ham[ten_thuat_toan](bai_toan, **tham_so)
-    thoi_gian = time.perf_counter() - bat_dau
     ket_qua = {
         "algorithm": ten_thuat_toan, "source": "SimpleAI",
         "heuristic": heuristic if ten_thuat_toan in ("greedy", "astar") else "-",
         "graph_search": tham_so["graph_search"],
         "depth_limit": depth_limit if ten_thuat_toan == "dls" else None,
-        "seconds": round(thoi_gian, 6), "steps": None, "cost": None,
+        "steps": None, "cost": None,
     }
+    bat_dau = time.perf_counter()
+    try:
+        nut_dich = danh_sach_ham[ten_thuat_toan](bai_toan, **tham_so)
+    except (KeyboardInterrupt, Exception) as exc:
+        ket_qua["status"] = "INTERRUPTED" if isinstance(exc, KeyboardInterrupt) else "ERROR"
+        if not isinstance(exc, KeyboardInterrupt):
+            ket_qua["error"] = traceback.format_exc()
+    # Chụp số liệu trước khi phát lại lời giải để không đếm lẫn phần kiểm chứng.
+    ket_qua.update({
+        "seconds": round(time.perf_counter() - bat_dau, 6),
+        "expanded": bai_toan.expanded,
+        "generated": bai_toan.generated,
+        "goal_tests": bai_toan.goal_tests,
+    })
+    if "status" in ket_qua:
+        return ket_qua
     if nut_dich is None:
         ket_qua["status"] = (
             "NO_SOLUTION_WITH_LIMIT" if ten_thuat_toan == "dls" else "NO_SOLUTION")
@@ -100,116 +112,37 @@ def chay_thuat_toan_ben_trong(
     return ket_qua
 
 
-def chay_co_gioi_han_thoi_gian(
-    ten_thuat_toan: str,
-    heuristic: str,
-    depth_limit: int,
-    demo: bool,
-    timeout: float,
-    engine: str = "simpleai",
-) -> dict:
-    """subprocess.run kill và wait tiến trình trực tiếp khi hết timeout."""
-    lenh = [
-        sys.executable, "-m", "bai3_8_puzzle.chay_bai_3", "_worker",
-        "--algorithm", ten_thuat_toan,
-        "--heuristic", heuristic,
-        "--depth-limit", str(depth_limit),
-        "--engine", engine,
-    ]
-    if demo:
-        lenh.append("--demo")
-
-    bat_dau = time.perf_counter()
-    try:
-        tien_trinh = subprocess.run(
-            lenh,
-            cwd=Path(__file__).resolve().parents[1],
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            timeout=timeout,
-            check=False,
-        )
-    except subprocess.TimeoutExpired:
-        return {
-            "algorithm": ten_thuat_toan,
-            "heuristic": heuristic if ten_thuat_toan in ("greedy", "astar") else "-",
-            "source": "SimpleAI",
-            "cost": None,
-            "status": "TIMEOUT",
-            "steps": None,
-            "seconds": round(time.perf_counter() - bat_dau, 3),
-        }
-
-    if tien_trinh.returncode != 0:
-        return {
-            "algorithm": ten_thuat_toan,
-            "heuristic": heuristic if ten_thuat_toan in ("greedy", "astar") else "-",
-            "source": "SimpleAI",
-            "cost": None,
-            "status": "ERROR",
-            "steps": None,
-            "seconds": round(time.perf_counter() - bat_dau, 3),
-            "error": (tien_trinh.stderr or tien_trinh.stdout)[-800:],
-        }
-    try:
-        return json.loads(tien_trinh.stdout)
-    except json.JSONDecodeError:
-        return {
-            "algorithm": ten_thuat_toan,
-            "heuristic": heuristic if ten_thuat_toan in ("greedy", "astar") else "-",
-            "source": "SimpleAI",
-            "cost": None,
-            "status": "ERROR",
-            "steps": None,
-            "seconds": round(time.perf_counter() - bat_dau, 3),
-            "error": "Phản hồi không phải JSON: " + tien_trinh.stdout[-300:],
-        }
-
-
-def in_duong_di_chi_tiet(ket_qua: dict) -> None:
-    if ket_qua.get("status") != "SOLVED":
-        return
-    cac_trang_thai = ket_qua.get("states", [])
-    cac_hanh_dong = ket_qua.get("all_moves", [])
-    if len(cac_trang_thai) <= 61:
-        print("\nQUÁ TRÌNH DI CHUYỂN (0 LÀ Ô TRỐNG)")
-        for so_buoc, trang_thai in enumerate(cac_trang_thai):
-            mo_ta = "Bắt đầu" if so_buoc == 0 else f"Bước {so_buoc}: {cac_hanh_dong[so_buoc-1]}"
-            print(f"\n{mo_ta}\n{hien_thi_ma_tran(tuple(trang_thai))}")
-    else:
-        print("Đường đi dài, chỉ in 10 bước đầu/cuối để tránh tràn console:")
-        print("Đầu:", ket_qua.get("first_moves", []))
-        print("Cuối:", ket_qua.get("last_moves", []))
-
-
 def hien_thi_bang_so_sanh(danh_sach_ket_qua: list[dict]) -> None:
     print("\nBẢNG SO SÁNH KẾT QUẢ")
-    print(f"{'Thuật toán':<21} {'Nguồn':<13} {'Heuristic':<10} {'Trạng thái':<25} {'Số bước':>8} {'Chi phí':>8} {'Giây':>9}")
-    print("-" * 99)
+    print(f"{'Thuật toán':<21} {'Nguồn':<13} {'Heuristic':<10} {'Trạng thái':<25} {'Bước lời giải':>13} {'Chi phí':>8} {'Expanded':>12} {'Generated':>12} {'Giây':>9}")
+    print("-" * 132)
     for ket_qua in danh_sach_ket_qua:
         so_buoc = str(ket_qua.get("steps")) if ket_qua.get("steps") is not None else "-"
         heuristic = ket_qua["heuristic"] if ket_qua["algorithm"] in ("astar", "greedy") else "-"
+        ten_hien_thi = TEN_THUAT_TOAN[ket_qua['algorithm']]
+        if ket_qua['algorithm'] == 'dls':
+            ten_hien_thi += f" (l={ket_qua.get('depth_limit', '?')})"
         print(
-            f"{TEN_THUAT_TOAN[ket_qua['algorithm']]:<21} "
+            f"{ten_hien_thi:<21} "
             f"{ket_qua.get('source', '-'):<13} "
             f"{heuristic:<10} "
             f"{ket_qua['status']:<25} "
-            f"{so_buoc:>8} "
+            f"{so_buoc:>13} "
             f"{str(ket_qua.get('cost')) if ket_qua.get('cost') is not None else '-':>8} "
+            f"{str(ket_qua.get('expanded', '-')):>12} "
+            f"{str(ket_qua.get('generated', '-')):>12} "
             f"{ket_qua.get('seconds', 0):>9.3f}"
         )
-        if ket_qua.get("error"):
-            print("  Lỗi:", ket_qua["error"])
-    print("\nTIMEOUT = quá giới hạn thời gian, không đồng nghĩa bài toán vô nghiệm.")
-    print("DLS trả None nếu không tìm thấy đích trong giới hạn độ sâu.")
-    print("Thời gian có thể khác nhau tùy máy tính.")
 
 
 def chay_bai_tap(args: argparse.Namespace) -> None:
-    trang_thai_dau = TRANG_THAI_DEMO if args.demo else TRANG_THAI_DAU
+    trang_thai_dau = TRANG_THAI_DAU
     print("\nBÀI 3 - 8-PUZZLE VỚI 7 THUẬT TOÁN")
-    print("Chế độ: tất cả thuật toán gọi SimpleAI nguyên bản")
+    print("Chạy đủ 7 thuật toán SimpleAI / 9 cấu hình, không giới hạn thời gian.")
+    print("Ctrl+C bỏ qua lượt đang chạy (INTERRUPTED); không đồng nghĩa vô nghiệm.")
+    print("Bước lời giải = độ dài đường đi; Expanded/Generated = số lần mở rộng/sinh nút.")
+    print("Số đếm IDS cộng dồn qua các lượt độ sâu, không tính phần kiểm chứng.")
+    print(f"DLS giới hạn độ sâu {args.depth_limit}; IDS thử lại DLS từ 0 và tự tăng độ sâu.")
     print("Trạng thái ban đầu:\n" + hien_thi_ma_tran(trang_thai_dau))
     print("\nTrạng thái đích:\n" + hien_thi_ma_tran(TRANG_THAI_DICH))
     print(f"\nSố nghịch thế đầu/đích: {dem_nghich_the(trang_thai_dau)} / {dem_nghich_the(TRANG_THAI_DICH)}")
@@ -220,24 +153,31 @@ def chay_bai_tap(args: argparse.Namespace) -> None:
         print("Không chạy tìm kiếm: bài toán không có lời giải do parity nghịch thế.")
         return
 
-    danh_sach_chay = CAC_CAU_HINH if args.all else [(args.algorithm, args.heuristic)]
-
     danh_sach_ket_qua = []
-    for ten_thuat_toan, heuristic in danh_sach_chay:
+    for ten_thuat_toan, heuristic in CAC_CAU_HINH:
         ten_hien_thi = TEN_THUAT_TOAN[ten_thuat_toan]
         dung_h = heuristic if ten_thuat_toan in ("astar", "greedy") else "không dùng h"
         print(f"\nĐang chạy: {ten_hien_thi} ({dung_h})...", flush=True)
-        ket_qua = chay_co_gioi_han_thoi_gian(
-            ten_thuat_toan, heuristic, args.depth_limit,
-            args.demo, args.timeout, args.engine,
-        )
+        bat_dau = time.perf_counter()
+        try:
+            ket_qua = chay_thuat_toan(
+                ten_thuat_toan, heuristic, args.depth_limit, trang_thai_dau)
+        except (KeyboardInterrupt, Exception) as exc:
+            ket_qua = {
+                "algorithm": ten_thuat_toan, "source": "SimpleAI",
+                "heuristic": heuristic if ten_thuat_toan in ("astar", "greedy") else "-",
+                "status": "INTERRUPTED" if isinstance(exc, KeyboardInterrupt) else "ERROR",
+                "steps": None, "cost": None,
+                "seconds": round(time.perf_counter() - bat_dau, 6),
+            }
+            if not isinstance(exc, KeyboardInterrupt):
+                ket_qua["error"] = traceback.format_exc()
         danh_sach_ket_qua.append(ket_qua)
-        print(f"  -> {ket_qua['status']}, số bước = {ket_qua.get('steps')}, "
-              f"thời gian = {ket_qua.get('seconds')} giây")
+        # Mỗi lượt chỉ in bảng mới nhất, không in các trạng thái trên đường đi.
+        hien_thi_bang_so_sanh(danh_sach_ket_qua)
+        if ket_qua.get("error"):
+            print("Lỗi:", ket_qua["error"])
 
-    hien_thi_bang_so_sanh(danh_sach_ket_qua)
-    if not args.all:
-        in_duong_di_chi_tiet(danh_sach_ket_qua[0])
     if args.json:
         duong_dan_json = Path(args.json)
         duong_dan_json.parent.mkdir(parents=True, exist_ok=True)
@@ -247,7 +187,7 @@ def chay_bai_tap(args: argparse.Namespace) -> None:
         duong_dan_csv = Path(args.csv)
         duong_dan_csv.parent.mkdir(parents=True, exist_ok=True)
         with duong_dan_csv.open("w", newline="", encoding="utf-8-sig") as tep:
-            cot = ["algorithm", "source", "heuristic", "status", "steps", "cost", "seconds"]
+            cot = ["algorithm", "source", "heuristic", "status", "steps", "cost", "expanded", "generated", "goal_tests", "seconds"]
             writer = csv.DictWriter(tep, fieldnames=cot)
             writer.writeheader()
             for ket_qua in danh_sach_ket_qua:
@@ -259,34 +199,15 @@ def main() -> None:
     for stream in (sys.stdout, sys.stderr):
         if hasattr(stream, "reconfigure"):
             stream.reconfigure(encoding="utf-8")
-    parser = argparse.ArgumentParser(description="Chạy 7 thuật toán cho 8-Puzzle")
-    parser.add_argument("che_do", nargs="?", default="run", choices=["run", "_worker"])
-    parser.add_argument("--algorithm", choices=list(TEN_THUAT_TOAN), default="astar")
-    parser.add_argument("--heuristic", choices=["h1", "h2"], default="h2")
-    parser.add_argument("--all", action="store_true", help="Chạy đủ 7 thuật toán với h1/h2")
-    parser.add_argument("--demo", action="store_true", help="Ma trận gần đích để trình diễn")
-    parser.add_argument("--timeout", type=float, default=30.0, help="Số giây tối đa mỗi thuật toán")
-    parser.add_argument("--depth-limit", type=int, default=20, help="Giới hạn độ sâu DLS")
-    parser.add_argument("--engine", choices=["simpleai"], default="simpleai",
-                        help="Tương thích lệnh cũ; chỉ dùng SimpleAI nguyên bản")
-    parser.add_argument("--json", default="", help="Lưu đầy đủ đường đi và kết quả JSON")
-    parser.add_argument("--csv", default="", help="Đường dẫn lưu CSV")
+    parser = argparse.ArgumentParser(
+        description="Chạy đủ 7 thuật toán SimpleAI, không giới hạn thời gian")
+    parser.add_argument("--depth-limit", type=int, default=20, help="Giới hạn độ sâu DLS (không phải thời gian)")
+    parser.add_argument("--json", default="", help="Lưu đầy đủ kết quả và đường đi JSON")
+    parser.add_argument("--csv", default="", help="Lưu bảng so sánh CSV")
     args = parser.parse_args()
-
-    if not math.isfinite(args.timeout) or args.timeout <= 0 or args.depth_limit < 0:
-        parser.error("--timeout phải > 0 và --depth-limit phải >= 0")
-
-    if args.che_do == "_worker":
-        try:
-            ket_qua = chay_thuat_toan_ben_trong(
-                args.algorithm, args.heuristic, args.depth_limit, args.demo, args.engine
-            )
-            print(json.dumps(ket_qua, ensure_ascii=True))
-        except ImportError as exc:
-            print(f"Thiếu thư viện: {exc}. Chạy python -m pip install -r requirements.txt", file=sys.stderr)
-            raise SystemExit(2) from exc
-    else:
-        chay_bai_tap(args)
+    if args.depth_limit < 0:
+        parser.error("--depth-limit phải >= 0")
+    chay_bai_tap(args)
 
 
 if __name__ == "__main__":
