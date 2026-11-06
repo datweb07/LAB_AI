@@ -30,15 +30,41 @@ def exercise_one(args):
     print("Lịch sử xung đột tốt nhất (tối đa 30 thế hệ đầu):", result.history[:30])
 
 
+def print_backtracking_table(records):
+    headers = ("Chiến lược", "AC-3", "Nghiệm (hàng theo cột)", "Số lần kiểm tra ràng buộc")
+    rows = []
+    for label, inference, solution, checks in records:
+        state = tuple(solution[c] for c in range(1, 6)) if solution else None
+        rows.append((label, str(inference), str(state), str(checks)))
+    widths = [max(len(row[col]) for row in [headers, *rows]) for col in range(len(headers))]
+    border = "+" + "+".join("-" * (width + 2) for width in widths) + "+"
+
+    def format_row(row, header=False):
+        cells = []
+        for col, (value, width) in enumerate(zip(row, widths)):
+            if header or col == 0:
+                cells.append(value.ljust(width))
+            elif col == 3:
+                cells.append(value.rjust(width))
+            else:
+                cells.append(value.center(width))
+        return "| " + " | ".join(cells) + " |"
+
+    print(border)
+    print(format_row(headers, header=True))
+    print(border)
+    for row in rows:
+        print(format_row(row))
+        print(border)
+
+
 def exercise_two(args):
     print("\nBÀI 2 - CSP 5 HẬU VÀ CHUYỂN SANG SEARCH/GA")
     print("X = {Q1,..,Q5}; Di = {1,2,3,4,5}; Qi là hàng hậu ở cột i.")
     print("Với i<j: Qi != Qj và abs(Qi-Qj) != abs(i-j). Có 10 ràng buộc nhị phân.")
-    print("\nChiến lược | AC-3 | nghiệm (hàng theo cột) | số lần kiểm tra ràng buộc")
     records = compare_backtracking(5)
-    for label, inference, solution, checks in records:
-        state = tuple(solution[c] for c in range(1, 6)) if solution else None
-        print(f"{label} | {inference} | {state} | {checks}")
+    print()
+    print_backtracking_table(records)
     print("\nBàn cờ nghiệm backtrack mẫu:")
     print(board_text(tuple(records[0][2][c] for c in range(1, 6))))
     print("\nSearch: trạng thái đầy đủ; hành động đổi hàng một hậu; đích không xung đột.")
